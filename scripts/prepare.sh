@@ -1,9 +1,9 @@
 #!/bin/bash
 
-st=1
-
 build_kb=1
 build_sc_machine=1
+
+unameOut="$(uname -s)"
 
 set -eo pipefail
 
@@ -22,7 +22,6 @@ done
 stage()
 {
 	echo -en "[$1]\n"
-	let "st += 1"
 }
 
 clone_project()
@@ -32,42 +31,37 @@ clone_project()
 		git clone "$1" ../"$2"
 		cd ../"$2"
 		git checkout "$3"
+		git submodule update --init --recursive
 		cd -
 	else
 		echo -e "You can update $2 manualy\n"
 	fi
 }
 
-stage "Clone projects"
+
+stage "Clone sc-machine"
 
 clone_project https://github.com/ostis-ai/sc-machine.git sc-machine feature/component_manager
-
 git submodule update --init --recursive
 
-stage "Prepare projects"
-
-prepare()
-{
-	echo -en "$1\n"
-}
 
 if (( $build_sc_machine == 1 )); then
-prepare "sc-machine"
+	stage "Build sc-machine"
 
-cd ../sc-machine
-git submodule update --init --recursive
-cd scripts
-./install_deps_ubuntu.sh --dev
+	cd ../sc-machine/scripts
+	case "${unameOut}" in
+		Linux*)     ./install_deps_ubuntu.sh --dev;;
+		Darwin*)    ./install_deps_macOS;;
+		*)	    echo -en "Can't install dependencies. Unsupported OS";;
+	esac
 
+	cd ..
+	pip3 install setuptools wheel
+	pip3 install -r requirements.txt
 
-cd ..
-pip3 install setuptools wheel
-pip3 install -r requirements.txt
-
-
-cd scripts
+	cd scripts
 	./make_all.sh -m
-cd ..
+	cd ..
 fi
 
 if (( $build_kb == 1 )); then
@@ -75,3 +69,4 @@ if (( $build_kb == 1 )); then
 	cd ../scripts
 	./build_kb.sh
 fi
+
